@@ -137,18 +137,18 @@ class VirtualMachinesStart {
                 }
             }
         }
-        public void addExecutionStep(int task, int vm,int row, int col, int cost){
-            paths.get(row).get(col).add(new Integer[]{task+1,vm+1,cost});
-            pathsStr.get(row).get(col).add(new String[]{"Serve task "+ (task+1)
-                    ," with VM "+(vm+1), " with cost "+cost+"."});
+        public void addExecutionStep(int task, int vm,int row, int col){
+            paths.get(row).get(col).add(new Integer[]{task+1,vm+1});
+            //pathsStr.get(row).get(col).add(new String[]{"Serve task "+ (task+1)
+                  //  ," with VM "+(vm+1), " with cost "+"_ "+"."});
         }
 
         public void addHeader(ArrayList<Integer[]> tracer, int row, int col, int cost){
             paths.get(row).get(col).add(new Integer[]{row+1,col+1,cost});
-            pathsStr.get(row).get(col).add(new String[]{"Target -> Task: "+(row+1)+","
-                    ,"VM: "+(col+1)+",", "Total Cost: "+cost});
+            //pathsStr.get(row).get(col).add(new String[]{"Target -> Task: "+(row+1)+","
+              //      ,"VM: "+(col+1)+",", "Total Cost: "+cost});
             for(int i=tracer.size()-1; i>=0; i--){
-                addExecutionStep(tracer.get(i)[0],tracer.get(i)[1],row,col,tracer.get(i)[2]);
+                addExecutionStep(tracer.get(i)[0],tracer.get(i)[1],row,col);
             }
             /*
             paths.get(row).get(col).add(new Integer[]{row+1,col+1,cost});
@@ -434,7 +434,7 @@ class VirtualMachinesStart {
 
         int[][] cost;
         DFS dfs = new DFS(vm);
-        cost = dfs.start(1); //<- 0 = normal, will only print result.  1 = detailed, will print result and track tasks
+        cost = dfs.start(); //<- 0 = normal, will only print result.  1 = detailed, will print result and track tasks
         vm.trace(5,3);
         lEndTime = System.nanoTime();
         output = lEndTime - lStartTime;
@@ -460,220 +460,77 @@ class VirtualMachinesStart {
             this.result = new int[vm.N][vm.M];
         }
 
-        public int[][] start(int mode){
-            if(mode == 0){
-                if(vm.N>=2){
-                    for(int row=0; row<2; row++){
-                        for(int col=0; col<vm.M; col++){
-                            dfsBaseline(row,col);
-                            System.out.print(result[row][col] + " ");
-                        }
-                        System.out.println();
-                    }
-                }else{
-                    if(vm.N == 1){
-                        int row = 0;
-                        for(int col=0; col<vm.M; col++){
-                            dfsBaseline(row,col);
-                            System.out.print(result[row][col] + " ");
-                        }
-                        System.out.println();
-                    }else{
-                        System.out.println("The amount of tasks must be at least 1.");
-                    }
+        public int[][] start(){
+            vm.startTracing();
+            for(int row=0; row<vm.N; row++){
+                for(int col=0; col<vm.M; col++){
+                    dfs(row,col);
+                    System.out.print(result[row][col] + " ");
                 }
-                for(int row=2; row<vm.N; row++){
-                    for(int col=0; col<vm.M; col++){
-                        dfs(row,col);
-                        System.out.print(result[row][col] + " ");
-                    }
-                    System.out.println();
-                }
-            }else{
-                vm.startTracing();
-                if(vm.N>=2){
-                    for(int row=0; row<2; row++){
-                        for(int col=0; col<vm.M; col++){
-                            dfsDetailedBaseline(row,col);
-                        }
-                    }
-                }else{
-                    if(vm.N == 1){
-                        int row = 0;
-                        for(int col=0; col<vm.M; col++){
-                            dfsDetailedBaseline(row,col);
-                        }
-                    }else{
-                        System.out.println("The amount of tasks must be at least 1.");
-                    }
-                }
-                for(int row=2; row<vm.N; row++){
-                    for(int col=0; col<vm.M; col++){
-                        dfsDetailed(row,col);
-                    }
-                }
-                printResult();
+                System.out.println();
             }
             return result;
         }
 
         public int dfs(int sRow, int sCol){
             this.cost = 9999;
-            this.targetRow = sRow - 2; // 2 level down
-            this.cost = traverse(sRow,sCol,sCol,0);
-            vm.insertToMemory(sRow,sCol,this.cost);
-            result[sRow][sCol] = this.cost;
-            return this.cost;
-        }
-
-        public int dfsBaseline(int sRow, int sCol){
-            this.cost = 9999;
-            //no target row
-            this.cost = traverseBaseline(sRow,sCol,sCol,0);
-            vm.insertToMemory(sRow,sCol,this.cost);
-            result[sRow][sCol] = this.cost;
-            return this.cost;
-        }
-
-        //*
-        public int dfsDetailed(int sRow, int sCol){
-            this.cost = 9999;
-            this.targetRow = sRow - 2; // 2 level down
+            this.sTask = sRow;
+            if(sRow >=2){
+                this.targetRow = sRow - 2; // 2 level down
+            }else{
+                this.targetRow = 0;
+            }
             this.tracer = new ArrayList<>();
             this.cost = traverse(sRow,sCol,sCol,0,tracer);
             vm.addHeader(this.m_tracer,sRow,sCol,this.cost);
             vm.insertToMemory(sRow,sCol,this.cost);
-            //System.out.println(this.cTail);
             result[sRow][sCol] = this.cost;
             return this.cost;
         }
 
-        public int dfsDetailedBaseline(int sRow, int sCol){
-            this.cost = 9999;
-            //no target row
-            this.tracer = new ArrayList<>();
-            this.cost = traverseBaseline(sRow,sCol,sCol,0,tracer);
-            vm.addHeader(this.m_tracer,sRow,sCol,this.cost);
-            vm.insertToMemory(sRow,sCol,this.cost);
-            //System.out.println(this.cTail);
-            result[sRow][sCol] = this.cost;
-            return this.cost;
-        }
-        //*/
-
-        private int traverse(int cRow, int cCol , int fCol, int cost){
-
-            if(cRow == this.targetRow){
-                cost += heuristicTail(cRow,cCol,fCol);
-                return cost;
-            }
-            cost += heuristic(cRow,cCol,fCol);
-            if(cost> this.cost){
-                return cost;
-            }
-            for(int[] children : vm.getChildren(cRow,cCol)){
-                cCost = traverse(children[0],children[1],cCol,cost);
-                if(cCost< this.cost){
-                    this.cost = cCost;
-                }
-            }
-            return this.cost;
-        }
-
-        private int traverseBaseline(int cRow, int cCol , int fCol, int cost){
-
-            if(cRow == 0){
-                cost += heuristic(cRow,cCol,fCol);
-                return cost;
-            }
-            cost += heuristic(cRow,cCol,fCol);
-            if(cost> this.cost){
-                return cost;
-            }
-            for(int[] children : vm.getChildren(cRow,cCol)){
-                cCost = traverse(children[0],children[1],cCol,cost);
-                if(cCost< this.cost){
-                    this.cost = cCost;
-                }
-            }
-            return this.cost;
-        }
-        //*
         private int traverse(int cRow, int cCol , int fCol, int cost, ArrayList<Integer[]> tracer){
 
             if(cRow == this.targetRow){
-                int leafcost = vm.MXM[fCol][cCol];
-                int prev_cost = heuristicTail(cRow,cCol, fCol);
-                cost += prev_cost;
-                tracer.add(new Integer[]{cRow,cCol,leafcost});
-                //vm.addExecutionStep(cRow,cCol,sTask,sVM,leafcost);
-                //tail+= "Task: "+(cRow+1)+", served from VM: "+ (cCol+1) +". \nTotal Cost: "+cost+"\n";
-                writePath(tracer,cost);
+                cost += heuristic(cRow,cCol, fCol);
+                tracer.add(new Integer[]{cRow,cCol});
+                markTracer(tracer,cost);
                 return cost;
             }
-            //tail += "Task: "+(cRow+1)+", served from VM: "+ (cCol+1) +". \n";
-            int leafcost = heuristic(cRow, cCol, fCol);
-            cost += leafcost;
-            tracer.add(new Integer[]{cRow,cCol,leafcost});
-            //vm.addExecutionStep(cRow,cCol,sTask,sVM,leafcost);
-            if(cost> this.cost){
+            cost += heuristic(cRow, cCol, fCol);
+            tracer.add(new Integer[]{cRow,cCol});
+            if(cost> this.cost){ //cut-off/pruning
                 return cost;
             }
             for(int[] children : vm.getChildren(cRow,cCol)){
                 cCost = traverse(children[0],children[1],cCol,cost,new ArrayList<>(tracer));
+
                 if(cCost< this.cost){
                     this.cost = cCost;
+                    //System.out.println("inner");
                 }
+
             }
             return this.cost;
         }
 
-        private int traverseBaseline(int cRow, int cCol , int fCol, int cost, ArrayList<Integer[]> tracer) {
-
-            if (cRow == 0) {
-                int leafcost = heuristic(cRow, cCol, fCol);
-                cost += leafcost;
-                tracer.add(new Integer[]{cRow,cCol,leafcost});
-                //vm.addExecutionStep(cRow,cCol,sTask,sVM,leafcost);
-                //tail+= "Task: "+(cRow+1)+", served from VM: "+ (cCol+1) +". \nTotal Cost: "+cost+"\n";
-                writePath(tracer,cost);
-                return cost;
-            }
-            //tail += "Task: "+(cRow+1)+", served from VM: "+ (cCol+1) +". \n";
-            int leafcost = heuristic(cRow, cCol, fCol);
-            cost += leafcost;
-            tracer.add(new Integer[]{cRow,cCol,leafcost});
-            //vm.addExecutionStep(cRow,cCol,sTask,sVM,leafcost);
-            if (cost > this.cost) {
-                return cost;
-            }
-            for (int[] children : vm.getChildren(cRow, cCol)) {
-                cCost = traverseBaseline(children[0], children[1], cCol, cost, new ArrayList<>(tracer));
-                if (cCost < this.cost) {
-                    this.cost = cCost;
-                }
-            }
-            return this.cost;
-        }
-
-        private boolean writePath(ArrayList<Integer[]> tracer,int cost){
+        private boolean markTracer(ArrayList<Integer[]> tracer,int cost){
             if(cost< this.cost){
+                //this.cost = cost;
                 this.m_tracer = new ArrayList<>(tracer);
                 return true;
             }else{
                 return false;
             }
         }
-        //*/
 
         private int heuristic(int toR, int toC, int fromC){
-            int taskCost = vm.NXM[toR][toC];
-            int travelCost = vm.MXM[fromC][toC];
-            return taskCost + travelCost;
-        }
+            int taskCost;
+            if(sTask>=2){
 
-        private int heuristicTail(int toR, int toC, int fromC){
-            int taskCost = vm.takeFromMemory(toR,toC);
+                taskCost = vm.takeFromMemory(toR,toC);
+            }else{
+                taskCost = vm.NXM[toR][toC];
+            }
             int travelCost = vm.MXM[fromC][toC];
             return taskCost + travelCost;
         }
