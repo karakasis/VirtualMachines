@@ -62,8 +62,9 @@ class VirtualMachinesStart {
         public int[][] MXM;
         private int[][] dynamicMemory;
         public int currentRow;
-        private ArrayList<ArrayList<ArrayList<String[]>>> pathsStr;
-        private ArrayList<ArrayList<ArrayList<Integer[]>>> paths;
+        private HashMap<List<Integer>,ArrayList<Integer[]>> map;
+        private HashMap<List<Integer>,ArrayList<Integer[]>> dataCache;
+        private HashMap<List<Integer>,ArrayList<String>> pathsCache;
 
 
         public VM(int N, int M) {
@@ -73,8 +74,9 @@ class VirtualMachinesStart {
             MXM = new int[M][M];
             dynamicMemory = new int[N][M];
             currentRow = 0;
-            paths  = new ArrayList<>();
-            pathsStr = new ArrayList<>();
+            map = new HashMap<>();
+            dataCache = new HashMap<>();
+            pathsCache = new HashMap<>();
         }
 
         public void printNXM(){
@@ -119,7 +121,7 @@ class VirtualMachinesStart {
             return dynamicMemory[row][col]; //2 levels down
         }
 
-        public ArrayList<int[]> getChildren(int row, int col){
+        public ArrayList<int[]> next(int row){
             ArrayList<int[]> children = new ArrayList<>();
             for(int i=0; i<M; i++){
                 children.add(new int[]{row-1,i});
@@ -127,55 +129,102 @@ class VirtualMachinesStart {
             return children;
         }
 
-        public void startTracing(){
-            for(int i=0; i<N; i++){
-                paths.add(new ArrayList<>());
-                pathsStr.add(new ArrayList<>());
-                for(int j=0; j<M; j++){
-                    paths.get(i).add(new ArrayList<>());
-                    pathsStr.get(i).add(new ArrayList<>());
-                }
-            }
-        }
-        public void addExecutionStep(int task, int vm,int row, int col){
-            paths.get(row).get(col).add(new Integer[]{task+1,vm+1});
-            //pathsStr.get(row).get(col).add(new String[]{"Serve task "+ (task+1)
-                  //  ," with VM "+(vm+1), " with cost "+"_ "+"."});
-        }
-
         public void addHeader(ArrayList<Integer[]> tracer, int row, int col, int cost){
-            paths.get(row).get(col).add(new Integer[]{row+1,col+1,cost});
-            //pathsStr.get(row).get(col).add(new String[]{"Target -> Task: "+(row+1)+","
-              //      ,"VM: "+(col+1)+",", "Total Cost: "+cost});
-            for(int i=tracer.size()-1; i>=0; i--){
-                addExecutionStep(tracer.get(i)[0],tracer.get(i)[1],row,col);
-            }
-            /*
-            paths.get(row).get(col).add(new Integer[]{row+1,col+1,cost});
-            Collections.reverse(paths.get(row).get(col));
-            pathsStr.get(row).get(col).add(new String[]{"Target -> Task: "+(row+1)+","
-                    ,"VM: "+(col+1)+",", "Total Cost: "+cost});
-            Collections.reverse(pathsStr.get(row).get(col));
-            */
+            tracer.add(new Integer[]{row+1,col+1,cost}); // <HEADER
+            map.put(Collections.unmodifiableList(Arrays.asList(row, col)),tracer);
         }
 
-        public void trace(int task, int vm){
-            //task = task - 1;
+            // 5 3 -> real: 4 2
+        public ArrayList<String> trace(int s_task, int s_vm){
+            int task = s_task - 1;
+            int vm = s_vm - 1;
+            if(dataCache.containsKey(Arrays.asList(task, vm))){
+                System.out.println("Found in cache.");
+                return pathsCache.get(Arrays.asList(task, vm));
+            }
 
-            for(String[] str : pathsStr.get(task-1).get(vm-1)){
-                for(String s : str){
-                    System.out.print(s);
+
+            System.out.println("Building path...");
+            ArrayList<Integer[]> tracer;
+            tracer = map.get(Arrays.asList(task, vm));
+            int end = tracer.size();
+            Integer[] header = tracer.get(end-1);
+            ArrayList<Integer[]> constructed = new ArrayList<>();
+            while(end > 1){
+                constructed = construct(new ArrayList<>(tracer.subList(0,end-2)),constructed);//TODO maybe -2
+                task = task - 2;
+                tracer = map.get(Arrays.asList(task, tracer.get(end-2)[1]));
+                try{
+                    end = tracer.size();
+                }catch(Exception e){
+                    end = 0;
                 }
-                System.out.println();
+                //1. >3
             }
-            if(task - 2 > 0){
-                int last_vm = paths.get(task - 1).get(vm - 1).get(1)[1];
-                trace(task-2,last_vm);
+            //constructed.add(header);
+            Collections.reverse(constructed); // > 1 4, 2 6, 3 6, 4 2 etc..
+
+
+            ArrayList<String> consPath = new ArrayList<>();
+            Integer[] step;
+            Integer[] prev_step;
+            int cost;
+            int totalCost = 0;
+            consPath.add("[TARGET] -> TASK:" +(header[0])+ " VM:" +(header[1])+ " COST:" +header[2]);
+            step = constructed.get(0);
+            cost = NXM[step[0]][step[1]];
+            totalCost += cost;
+            constructed.set(0,new Integer[]{(step[0]+1),-1,(step[1]+1),cost});
+            consPath.add("Serve task " +(step[0]+1)+ " with VM " +(step[1]+1)+ " with cost " +cost+ ".");
+            for(int i = 1; i<constructed.size(); i++){
+                step = constructed.get(i);
+                prev_step = constructed.get(i-1);
+                cost = NXM[step[0]][step[1]] + MXM[prev_step[2] - 1][step[1]];
+                totalCost += cost; //for testing
+                constructed.set(i,new Integer[]{(step[0]+1),(prev_step[2]),(step[1]+1),cost});
+                consPath.add("Serve task " +(step[0]+1)+ " with VM " +(step[1]+1)+ " with cost " +cost+ ".");
             }
+            if(totalCost == header[2]) System.out.println("Success");
+            else {System.out.println("Error while building"); return null;}
+
+            manageCache(constructed,consPath,new Integer[]{s_task-1,s_vm-1});
+            return consPath;
         }
 
-        public void data(int task,int vm){
+        private void manageCache(ArrayList<Integer[]> data, ArrayList<String> str , Integer[] key){
+            if(dataCache.size()>100){
+                dataCache.clear();
+                pathsCache.clear();
+                System.out.println("Clearing cache.");
+            }
+            dataCache.put(Arrays.asList(key[0], key[1]),data);
+            pathsCache.put(Arrays.asList(key[0], key[1]),str);
+            System.out.println("Saved in cache.");
+        }
 
+        private ArrayList<Integer[]> construct(ArrayList<Integer[]> tracer, ArrayList<Integer[]> ret){
+            ret.addAll(tracer);
+            return ret;
+        }
+
+        public ArrayList<Integer[]> data(int task,int vm){
+            if(!dataCache.containsKey(Arrays.asList(task-1, vm-1))){
+                trace(task,vm);
+            }
+            ArrayList<Integer[]> data = dataCache.get(Arrays.asList(task-1, vm-1));
+            for(Integer[] step : data){
+                System.out.println("[RESPONSE] TASK:"+step[0]+" VM:"+step[2]+" COST:"+step[3]);
+            }
+            return data;
+        }
+
+        public Integer[] data(int task,int vm, int step){
+            if(!dataCache.containsKey(Arrays.asList(task-1, vm-1))){
+                trace(task,vm);
+            }
+            Integer[] data = dataCache.get(Arrays.asList(task-1, vm-1)).get(step-1);
+            System.out.println("[RESPONSE] STEP:"+step+" TASK:"+data[0]+" FROM_VM:"+data[1]+" VM:"+data[2]+" COST:"+data[3]);
+            return data;
         }
 
     }
@@ -435,7 +484,11 @@ class VirtualMachinesStart {
         int[][] cost;
         DFS dfs = new DFS(vm);
         cost = dfs.start(); //<- 0 = normal, will only print result.  1 = detailed, will print result and track tasks
-        vm.trace(5,3);
+        vm.trace(2,3);
+        //vm.trace(1,1);
+        //vm.trace(1,1);
+        vm.data(2,3);
+        vm.data(3,3,2);
         lEndTime = System.nanoTime();
         output = lEndTime - lStartTime;
         total += output;
@@ -447,13 +500,11 @@ class VirtualMachinesStart {
     public static class DFS {
         private VM vm;
         private int cost;
-        private int cCost;
-        private String cTail = "";
         private int targetRow;
         private int[][] result;
         private ArrayList<Integer[]> tracer;
         private ArrayList<Integer[]> m_tracer;
-        private int sTask,sVM;
+        private int sTask;
 
         public DFS(VM vm){
             this.vm = vm;
@@ -461,7 +512,6 @@ class VirtualMachinesStart {
         }
 
         public int[][] start(){
-            vm.startTracing();
             for(int row=0; row<vm.N; row++){
                 for(int col=0; col<vm.M; col++){
                     dfs(row,col);
@@ -505,8 +555,8 @@ class VirtualMachinesStart {
             if(cost> this.cost){ //cut-off/pruning
                 return;
             }
-            for(int[] children : vm.getChildren(cRow,cCol)){
-                traverse(children[0],children[1],cCol,cost,new ArrayList<>(tracer));
+            for(int[] col : vm.next(cRow)){ //< col[] has const row and variables columns
+                traverse(cRow-1,col[1],cCol,cost,new ArrayList<>(tracer));
             }
             return;
         }
