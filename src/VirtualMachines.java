@@ -462,7 +462,27 @@ class VirtualMachinesStart {
 
         public int[][] start(){
             vm.startTracing();
-            for(int row=0; row<vm.N; row++){
+            if(vm.N>=2){
+                for(int row=0; row<2; row++){
+                    for(int col=0; col<vm.M; col++){
+                        dfsBase(row,col);
+                        System.out.print(result[row][col] + " ");
+                    }
+                    System.out.println();
+                }
+            }else{
+                if(vm.N == 1){
+                    int row = 0;
+                    for(int col=0; col<vm.M; col++){
+                        dfsBase(row,col);
+                        System.out.print(result[row][col] + " ");
+                    }
+                    System.out.println();
+                }else{
+                    System.out.println("The amount of tasks must be at least 1.");
+                }
+            }
+            for(int row=2; row<vm.N; row++){
                 for(int col=0; col<vm.M; col++){
                     dfs(row,col);
                     System.out.print(result[row][col] + " ");
@@ -475,13 +495,21 @@ class VirtualMachinesStart {
         public int dfs(int sRow, int sCol){
             this.cost = 9999;
             this.sTask = sRow;
-            if(sRow >=2){
-                this.targetRow = sRow - 2; // 2 level down
-            }else{
-                this.targetRow = 0;
-            }
+            this.targetRow = sRow - 2; // 2 level down
             this.tracer = new ArrayList<>();
             this.cost = traverse(sRow,sCol,sCol,0,tracer);
+            vm.addHeader(this.m_tracer,sRow,sCol,this.cost);
+            vm.insertToMemory(sRow,sCol,this.cost);
+            result[sRow][sCol] = this.cost;
+            return this.cost;
+        }
+
+        public int dfsBase(int sRow, int sCol){
+            this.cost = 9999;
+            this.sTask = sRow;
+
+            this.tracer = new ArrayList<>();
+            this.cost = traverseBase(sRow,sCol,sCol,0,tracer);
             vm.addHeader(this.m_tracer,sRow,sCol,this.cost);
             vm.insertToMemory(sRow,sCol,this.cost);
             result[sRow][sCol] = this.cost;
@@ -491,6 +519,31 @@ class VirtualMachinesStart {
         private int traverse(int cRow, int cCol , int fCol, int cost, ArrayList<Integer[]> tracer){
 
             if(cRow == this.targetRow){
+                cost += heuristicTail(cRow,cCol, fCol);
+                tracer.add(new Integer[]{cRow,cCol});
+                markTracer(tracer,cost);
+                return cost;
+            }
+            cost += heuristic(cRow, cCol, fCol);
+            tracer.add(new Integer[]{cRow,cCol});
+            if(cost> this.cost){ //cut-off/pruning
+                return cost;
+            }
+            for(int[] children : vm.getChildren(cRow,cCol)){
+                cCost = traverse(children[0],children[1],cCol,cost,new ArrayList<>(tracer));
+
+                if(cCost< this.cost){
+                    this.cost = cCost;
+                    //System.out.println("inner");
+                }
+
+            }
+            return this.cost;
+        }
+
+        private int traverseBase(int cRow, int cCol , int fCol, int cost, ArrayList<Integer[]> tracer){
+
+            if(cRow == 0){
                 cost += heuristic(cRow,cCol, fCol);
                 tracer.add(new Integer[]{cRow,cCol});
                 markTracer(tracer,cost);
@@ -524,13 +577,13 @@ class VirtualMachinesStart {
         }
 
         private int heuristic(int toR, int toC, int fromC){
-            int taskCost;
-            if(sTask>=2){
+            int taskCost = vm.NXM[toR][toC];
+            int travelCost = vm.MXM[fromC][toC];
+            return taskCost + travelCost;
+        }
 
-                taskCost = vm.takeFromMemory(toR,toC);
-            }else{
-                taskCost = vm.NXM[toR][toC];
-            }
+        private int heuristicTail(int toR, int toC, int fromC){
+            int taskCost = vm.takeFromMemory(toR,toC);
             int travelCost = vm.MXM[fromC][toC];
             return taskCost + travelCost;
         }
