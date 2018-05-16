@@ -481,67 +481,53 @@ class VirtualMachinesStart {
                 this.targetRow = 0;
             }
             this.tracer = new ArrayList<>();
-            this.cost = traverse(sRow,sCol,sCol,0,tracer);
+            traverse(sRow,sCol,sCol,0,tracer);
             vm.addHeader(this.m_tracer,sRow,sCol,this.cost);
             vm.insertToMemory(sRow,sCol,this.cost);
             result[sRow][sCol] = this.cost;
             return this.cost;
         }
 
-        private int traverse(int cRow, int cCol , int fCol, int cost, ArrayList<Integer[]> tracer){
+        private void traverse(int cRow, int cCol , int fCol, int cost, ArrayList<Integer[]> tracer){
 
             if(cRow == this.targetRow){
-                cost += heuristic(cRow,cCol, fCol);
+                if(sTask>=2){
+                    cost += heuristicMemory(cRow,cCol, fCol);
+                }else{
+                    cost += heuristic(cRow,cCol, fCol);
+                }
                 tracer.add(new Integer[]{cRow,cCol});
                 markTracer(tracer,cost);
-                return cost;
+                return;
             }
             cost += heuristic(cRow, cCol, fCol);
             tracer.add(new Integer[]{cRow,cCol});
             if(cost> this.cost){ //cut-off/pruning
-                return cost;
+                return;
             }
             for(int[] children : vm.getChildren(cRow,cCol)){
-                cCost = traverse(children[0],children[1],cCol,cost,new ArrayList<>(tracer));
-
-                if(cCost< this.cost){
-                    this.cost = cCost;
-                    //System.out.println("inner");
-                }
-
+                traverse(children[0],children[1],cCol,cost,new ArrayList<>(tracer));
             }
-            return this.cost;
+            return;
         }
 
-        private boolean markTracer(ArrayList<Integer[]> tracer,int cost){
+        private void markTracer(ArrayList<Integer[]> tracer,int cost){
             if(cost< this.cost){
-                //this.cost = cost;
+                this.cost = cost;
                 this.m_tracer = new ArrayList<>(tracer);
-                return true;
-            }else{
-                return false;
             }
         }
 
         private int heuristic(int toR, int toC, int fromC){
-            int taskCost;
-            if(sTask>=2){
-
-                taskCost = vm.takeFromMemory(toR,toC);
-            }else{
-                taskCost = vm.NXM[toR][toC];
-            }
+            int taskCost = vm.NXM[toR][toC];
             int travelCost = vm.MXM[fromC][toC];
             return taskCost + travelCost;
         }
 
-        public void printResult(){
-            for(int row=0; row<vm.N; row++){
-                for(int col=0; col<vm.M; col++){
-                    System.out.print(result[row][col] + " ");
-                }
-                System.out.println();
-            }
+        private int heuristicMemory(int toR, int toC, int fromC){
+            int taskCost = vm.takeFromMemory(toR,toC);
+            int travelCost = vm.MXM[fromC][toC];
+            return taskCost + travelCost;
         }
 
     }
