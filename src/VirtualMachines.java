@@ -129,20 +129,14 @@ class VirtualMachinesStart {
             return children;
         }
 
-        public void addHeader(ArrayList<Integer[]> tracer, int row, int col, int cost){
+        public void stash(ArrayList<Integer[]> tracer, int row, int col, int cost){
             tracer.add(new Integer[]{row+1,col+1,cost}); // <HEADER
             map.put(Collections.unmodifiableList(Arrays.asList(row, col)),tracer);
         }
 
-            // 5 3 -> real: 4 2
-        public ArrayList<String> trace(int s_task, int s_vm){
+        private void build(int s_task, int s_vm){
             int task = s_task - 1;
             int vm = s_vm - 1;
-            if(dataCache.containsKey(Arrays.asList(task, vm))){
-                System.out.println("Found in cache.");
-                return pathsCache.get(Arrays.asList(task, vm));
-            }
-
 
             System.out.println("Building path...");
             ArrayList<Integer[]> tracer;
@@ -150,17 +144,23 @@ class VirtualMachinesStart {
             int end = tracer.size();
             Integer[] header = tracer.get(end-1);
             ArrayList<Integer[]> constructed = new ArrayList<>();
-            while(end > 1){
-                constructed = construct(new ArrayList<>(tracer.subList(0,end-2)),constructed);//TODO maybe -2
+
+            while (end > 1) {
+                if(end <= 3){
+                    constructed = construct(new ArrayList<>(tracer.subList(0,end-1)),constructed);
+                }else{
+                    constructed = construct(new ArrayList<>(tracer.subList(0, end - 2)), constructed);//TODO maybe -2
+                }
                 task = task - 2;
-                tracer = map.get(Arrays.asList(task, tracer.get(end-2)[1]));
-                try{
+                tracer = map.get(Arrays.asList(task, tracer.get(end - 2)[1]));
+                try {
                     end = tracer.size();
-                }catch(Exception e){
+                } catch (Exception e) {
                     end = 0;
                 }
                 //1. >3
             }
+
             //constructed.add(header);
             Collections.reverse(constructed); // > 1 4, 2 6, 3 6, 4 2 etc..
 
@@ -185,10 +185,9 @@ class VirtualMachinesStart {
                 consPath.add("Serve task " +(step[0]+1)+ " with VM " +(step[1]+1)+ " with cost " +cost+ ".");
             }
             if(totalCost == header[2]) System.out.println("Success");
-            else {System.out.println("Error while building"); return null;}
+            else {System.out.println("Error while building"); return;}
 
             manageCache(constructed,consPath,new Integer[]{s_task-1,s_vm-1});
-            return consPath;
         }
 
         private void manageCache(ArrayList<Integer[]> data, ArrayList<String> str , Integer[] key){
@@ -208,8 +207,10 @@ class VirtualMachinesStart {
         }
 
         public ArrayList<Integer[]> data(int task,int vm){
-            if(!dataCache.containsKey(Arrays.asList(task-1, vm-1))){
-                trace(task,vm);
+            if(dataCache.containsKey(Arrays.asList(task-1, vm-1))){
+                System.out.println("Found in cache.");
+            }else{
+                build(task,vm);
             }
             ArrayList<Integer[]> data = dataCache.get(Arrays.asList(task-1, vm-1));
             for(Integer[] step : data){
@@ -219,11 +220,26 @@ class VirtualMachinesStart {
         }
 
         public Integer[] data(int task,int vm, int step){
-            if(!dataCache.containsKey(Arrays.asList(task-1, vm-1))){
-                trace(task,vm);
+            if(dataCache.containsKey(Arrays.asList(task-1, vm-1))){
+                System.out.println("Found in cache.");
+            }else{
+                build(task,vm);
             }
             Integer[] data = dataCache.get(Arrays.asList(task-1, vm-1)).get(step-1);
-            System.out.println("[RESPONSE] STEP:"+step+" TASK:"+data[0]+" FROM_VM:"+data[1]+" VM:"+data[2]+" COST:"+data[3]);
+            System.out.println("[RESPONSE] STEP:"+step+" TASK:"+task+" FROM_VM:"+data[1]+" TO_VM:"+data[2]+" COST:"+data[3]);
+            return data;
+        }
+
+        public ArrayList<String> trace(int task,int vm){
+            if(dataCache.containsKey(Arrays.asList(task-1, vm-1))){
+                System.out.println("Found in cache.");
+            }else{
+                build(task,vm);
+            }
+            ArrayList<String> data = pathsCache.get(Arrays.asList(task-1, vm-1));
+            for(String step : data){
+                System.out.println(step);
+            }
             return data;
         }
 
@@ -277,26 +293,9 @@ class VirtualMachinesStart {
                     }
                 }
                 //write the M X M Array
-                //MXM[0][0] = 0;
-                /*
-                bw.write(String.valueOf(MXM[0][0]));
-                for(int col = 1; col < M; col++){
-                    //MXM[0][col] = rand.nextInt(7) + 2;
-                    bw.write(" "+String.valueOf(MXM[0][col]));
-                }
-                bw.write("\n");
-                */
                 for(int row = 0; row < M; row++){
-                    //MXM[row][0] = rand.nextInt(7) + 2;
                     bw.write(String.valueOf(MXM[row][0]));
                     for(int col = 1; col < M; col++){
-                        /*
-                        if(row != col){
-                            MXM[row][col] = rand.nextInt(7) + 2;
-                        }else{
-                            MXM[row][col] = 0;
-                        }
-                        */
                         bw.write(" "+String.valueOf(MXM[row][col]));
                     }
                     bw.write("\n");
@@ -356,7 +355,6 @@ class VirtualMachinesStart {
                 vm = new VM(N,M);
 
                 in.readLine(); // skip first new line
-                //loop through every line, split the line into x and y values, parse integers and add to a list
                 while ((str = in.readLine()) != null) {
                     if(str.isEmpty()) {
                         vm.currentRow = 0;
@@ -364,23 +362,21 @@ class VirtualMachinesStart {
                     }
                     try{
                         convertToValues(str,sb,vm,0);
-                        //counter++;
                     }catch (NumberFormatException | ArrayIndexOutOfBoundsException nfe_error){
                         //System.out.println("Cant parse integer from String");
                         //useful during tests but there will not be anything to catch
-                        //unless the structure of input.txt changes since convert to point
+                        //unless the structure of input.txt changes since convertToValues
                         //is optimised
                     }
                 }
                 while ((str = in.readLine()) != null) {
-                    if(str.isEmpty()) break; //TODO fix this with a better loop
+                    if(str.isEmpty()) break; 
                     try{
                         convertToValues(str,sb,vm,1);
-                        //counter++;
                     }catch (NumberFormatException | ArrayIndexOutOfBoundsException nfe_error){
                         //System.out.println("Cant parse integer from String");
                         //useful during tests but there will not be anything to catch
-                        //unless the structure of input.txt changes since convert to point
+                        //unless the structure of input.txt changes since convertToValues
                         //is optimised
                     }
                 }
@@ -461,9 +457,9 @@ class VirtualMachinesStart {
         long total = 0;
 
         Reader r = new Reader();
-
+        // TODO BOOKMARK
         // ----------MAKE RANDOM VMs----------
-        RandomMachines.make(5,5);
+        RandomMachines.make(50,50);
 
         // ----------READ INPUT----------
         lStartTime = System.nanoTime();
@@ -484,11 +480,11 @@ class VirtualMachinesStart {
         int[][] cost;
         DFS dfs = new DFS(vm);
         cost = dfs.start(); //<- 0 = normal, will only print result.  1 = detailed, will print result and track tasks
-        vm.trace(2,3);
+        //vm.trace(2,3);
+        vm.trace(30,4);
         //vm.trace(1,1);
-        //vm.trace(1,1);
-        vm.data(2,3);
-        vm.data(3,3,2);
+        //vm.data(2,3);
+        vm.data(45,35,22);
         lEndTime = System.nanoTime();
         output = lEndTime - lStartTime;
         total += output;
@@ -532,7 +528,7 @@ class VirtualMachinesStart {
             }
             this.tracer = new ArrayList<>();
             traverse(sRow,sCol,sCol,0,tracer);
-            vm.addHeader(this.m_tracer,sRow,sCol,this.cost);
+            vm.stash(this.m_tracer,sRow,sCol,this.cost);
             vm.insertToMemory(sRow,sCol,this.cost);
             result[sRow][sCol] = this.cost;
             return this.cost;
